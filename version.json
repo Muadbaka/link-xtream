@@ -1,0 +1,13 @@
+{
+  "version": "1.6.7",
+  "build_number": 9,
+  "release_date": "2026-11-14",
+  "download_url": "https://github.com/Muadbaka/link-xtream/releases/download/v1.6.7/Link-Xtream-Setup-1.6.7.exe",
+  "mandatory": false,
+  "changelog": [
+    "التحكم في نسبة العرض وأبعاد الصورة (16:9, 4:3, Stretch, Zoom)",
+    "تعدد الحسابات والتبديل السريع بين الاشتراكات",
+    "معالج ألوان وإضاءة الفيديو في الوقت الفعلي (السطوع، التباين، التشبع)",
+    "إضافة نظام التحديث التلقائي الصامت داخل التطبيق"
+  ]
+}
