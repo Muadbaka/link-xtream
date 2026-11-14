@@ -483,7 +483,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 color: scheme.onSurfaceVariant,
                                 fontSize: 11.5)),
                         const SizedBox(width: 16),
-                        const Text('v1.6.7',
+                        const Text('v1.6.8',
                             style:
                                 TextStyle(color: Colors.grey, fontSize: 11.5)),
                       ],

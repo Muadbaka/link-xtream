@@ -70,7 +70,7 @@ class _AccountScreenState extends State<AccountScreen> {
           const SizedBox(height: 16),
 
           // ---------- بطاقة الاشتراك الرئيسية ----------
-          _HeroCard(acc: acc, daysLeft: daysLeft),
+          _HeroCard(acc: acc, daysLeft: daysLeft, displayName: st.activeDisplayName),
           const SizedBox(height: 14),
 
           // ---------- إحصاءات المكتبة (بطاقات قابلة للنقر) ----------
@@ -164,8 +164,9 @@ class _AccountScreenState extends State<AccountScreen> {
 class _HeroCard extends StatelessWidget {
   final AccountInfo acc;
   final int? daysLeft;
+  final String displayName;
 
-  const _HeroCard({required this.acc, required this.daysLeft});
+  const _HeroCard({required this.acc, required this.daysLeft, required this.displayName});
 
   @override
   Widget build(BuildContext context) {
@@ -227,9 +228,9 @@ class _HeroCard extends StatelessWidget {
                               gradient: AppTheme.brandGradient,
                             ),
                             child: Text(
-                              acc.username.isEmpty
+                              displayName.isEmpty
                                   ? 'U'
-                                  : acc.username.characters.first.toUpperCase(),
+                                  : displayName.characters.first.toUpperCase(),
                               style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 23,
@@ -241,7 +242,7 @@ class _HeroCard extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(acc.username,
+                                Text(displayName,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(

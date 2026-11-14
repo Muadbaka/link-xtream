@@ -272,7 +272,7 @@ class SettingsScreen extends StatelessWidget {
                           style: TextStyle(
                               fontWeight: FontWeight.w800, fontSize: 14)),
                       Text(
-                          'Xtream Codes API • محرك media_kit (libmpv) • إصدار 1.6.7',
+                          'Xtream Codes API • محرك media_kit (libmpv) • إصدار 1.6.8',
                           style: TextStyle(fontSize: 11.5, color: Colors.grey)),
                     ],
                   ),

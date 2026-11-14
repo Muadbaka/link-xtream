@@ -426,7 +426,7 @@ class _HomeShellState extends State<HomeShell> {
                       color: scheme.primary,
                     ),
                     child: Text(
-                      _avatarLetter(st.session?.account.username),
+                      st.activeDisplayInitial,
                       style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
@@ -434,7 +434,7 @@ class _HomeShellState extends State<HomeShell> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(st.session?.account.username ?? '',
+                  Text(st.activeDisplayName,
                       style: const TextStyle(
                           fontSize: 13, fontWeight: FontWeight.w700)),
                   Icon(Icons.keyboard_arrow_down_rounded,

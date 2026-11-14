@@ -42,6 +42,24 @@ class AppState extends ChangeNotifier {
   bool autoLoginTried = false;
   List<SavedLogin> savedAccounts = [];
 
+  /// الاسم المعروض للحساب النشط (اسم الحساب المخصص أو username كـ Fallback)
+  String get activeDisplayName {
+    final username = session?.account.username ?? '';
+    if (username.isEmpty) return '';
+    final match = savedAccounts.where((a) =>
+      a.host.toLowerCase() == (api?.host.toLowerCase() ?? '') &&
+      a.username == username
+    ).firstOrNull;
+    final name = match?.displayName ?? '';
+    return name.isNotEmpty ? name : username;
+  }
+
+  /// الحرف الأول للاسم المعروض (للدائرة الرمزية Avatar)
+  String get activeDisplayInitial {
+    final name = activeDisplayName;
+    return name.isNotEmpty ? name[0].toUpperCase() : 'U';
+  }
+
   /// true أثناء استعادة البيانات/الجلسة عند الإقلاع — تُعرض شاشة بداية
   /// بدل وميض شاشة الدخول قبل انتهاء الاستعادة التلقائية.
   bool booting = true;
