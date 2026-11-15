@@ -407,12 +407,12 @@ void main() {
 
   group('UpdateService', () {
     test('isNewerVersion detects higher versions correctly', () {
-      expect(UpdateService.isNewerVersion('1.6.8', 10), isTrue);
-      expect(UpdateService.isNewerVersion('1.7.0', 10), isTrue);
-      expect(UpdateService.isNewerVersion('2.0.0', 10), isTrue);
-      expect(UpdateService.isNewerVersion('1.6.7', 10), isTrue); // Higher build number
-      expect(UpdateService.isNewerVersion('1.6.7', 9), isFalse); // Same
-      expect(UpdateService.isNewerVersion('1.6.6', 8), isFalse); // Older
+      expect(UpdateService.isNewerVersion('1.7.1', 11), isTrue);
+      expect(UpdateService.isNewerVersion('1.7.0', 12), isTrue);
+      expect(UpdateService.isNewerVersion('2.0.0', 11), isTrue);
+      expect(UpdateService.isNewerVersion('1.6.9', 12), isTrue); // Higher build number
+      expect(UpdateService.isNewerVersion('1.7.0', 11), isFalse); // Same
+      expect(UpdateService.isNewerVersion('1.6.9', 10), isFalse); // Older
       expect(UpdateService.isNewerVersion('1.5.0', 5), isFalse);
     });
 
