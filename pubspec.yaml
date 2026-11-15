@@ -1,7 +1,7 @@
 name: link_xtream
 description: "Link Xtream — مشغل IPTV احترافي لسطح المكتب ببروتوكول Xtream Codes API"
 publish_to: "none"
-version: 1.6.8+10
+version: 1.7.0+11
 
 environment:
   sdk: ^3.5.0

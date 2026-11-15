@@ -200,13 +200,7 @@ class _HeroCard extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // علامة مائية خافتة لشعار التطبيق
-          PositionedDirectional(
-            bottom: -55,
-            start: 4,
-            child: Icon(Icons.play_arrow_rounded,
-                size: 200, color: scheme.primary.withValues(alpha: 0.05)),
-          ),
+
           // المحتوى
           Padding(
             padding: const EdgeInsets.fromLTRB(30, 26, 30, 24),
