@@ -203,7 +203,7 @@ class AppState extends ChangeNotifier {
         if (saved != null && saved.isComplete) {
           try {
             await login(saved.host, saved.username, saved.password,
-                saveLogin: true, silent: true);
+                title: saved.title, saveLogin: true, silent: true);
           } catch (_) {
             // تعذر الاستعادة — تبقى شاشة الدخول معبأة
           }
@@ -303,8 +303,20 @@ class AppState extends ChangeNotifier {
     final formats = acc.allowedFormats.map((f) => f.toLowerCase()).toSet();
     preferredLiveFormat = formats.contains('m3u8') ? 'm3u8' : 'ts';
 
+    // استرجع الـ title المحفوظ مسبقاً إن لم يُمرَّر title جديد
+    // (مثال: استعادة تلقائية عند التشغيل — لا نريد محو اسم الحساب المخصص)
+    final effectiveTitle = title.trim().isNotEmpty
+        ? title.trim()
+        : savedAccounts
+              .where((a) =>
+                  a.host.toLowerCase() == host.toLowerCase() &&
+                  a.username == username)
+              .firstOrNull
+              ?.title ??
+            '';
+
     final savedAcc = SavedLogin(
-      title: title.trim(),
+      title: effectiveTitle,
       host: host,
       username: username,
       password: password,
