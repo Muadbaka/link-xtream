@@ -73,7 +73,7 @@ var
   Token: String;
 begin
   Token := GetSHA256OfString(
-    GetDateTimeString('yyyymmddhhnnss', '', '') + '|' +
+    GetDateTimeString('yyyymmddhhnnss', '-', ':') + '|' +
     GetComputerNameString + '|' +
     GetUserNameString + '|' +
     ExpandConstant('{app}'));
