@@ -94,6 +94,16 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
   // ---------- أبعاد ونسبة العرض (Aspect Ratio) ----------
   VideoAspect _aspect = VideoAspect.auto;
 
+  // ---------- قائمة القنوات داخل المشغّل (البث المباشر) ----------
+  bool _channelPanelVisible = false;
+  String _channelQuery = '';
+  String _channelCat = ''; // '' = كل الفئات
+  late String _liveId; // القناة الحالية — تتغيّر دون إعادة إنشاء المشغّل
+  final FocusNode _channelSearchFocus =
+      FocusNode(debugLabel: 'player_channel_search');
+  final TextEditingController _channelSearchCtrl = TextEditingController();
+  ScrollController? _channelScroll;
+
   // ---------- معالجة ألوان الفيديو وإضاءة الصورة ----------
   bool _colorPanelVisible = false;
   double _brightness = 0.0; // -0.5 .. 0.5 (افتراضي 0)
@@ -109,6 +119,7 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
   Timer? _loadTimer;
   List<String> _urls = const [];
   int _urlIdx = 0;
+  int _openToken = 0;
   double _rate = 1.0;
 
   // ---------- التحكم بلوحة المفاتيح ----------
@@ -131,6 +142,7 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
   void initState() {
     super.initState();
     _st = context.read<AppState>();
+    _liveId = widget.target.id;
     windowManager.addListener(this);
     _guardThenSetup();
     // التركيز فور فتح المشغل حتى تستجيب لوحة المفاتيح بدون أي نقرة ماوس
@@ -262,9 +274,9 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
         }
         break;
       default: // live
-        final ch = st.channels.firstWhere((x) => x.id == widget.target.id,
+        final ch = st.channels.firstWhere((x) => x.id == _liveId,
             orElse: () => Channel(
-                id: widget.target.id,
+                id: _liveId,
                 name: 'قناة',
                 categoryId: '',
                 logo: '',
@@ -287,18 +299,7 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
           if (ch.directSource.isNotEmpty) ch.directSource,
         ];
         // الآن/التالي
-        st.loadEpg(ch.id).then((list) {
-          if (!mounted) return;
-          final now = list.where((e) => e.isNow).toList();
-          if (now.isNotEmpty) {
-            final idx = list.indexOf(now.first);
-            final next = idx + 1 < list.length ? list[idx + 1] : null;
-            setState(() {
-              _nowNext =
-                  'الآن: ${now.first.title}${next != null ? '  •  التالي: ${next.title}' : ''}';
-            });
-          }
-        });
+        _loadEpgFor(ch.id);
     }
 
     if (!mounted) return;
@@ -414,8 +415,12 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
 
   /// يفتح الرابط الحالي مع الترويسات؛ مع مؤقّت مهلة يُظهر خطأً بدل الدوران اللانهائي
   Future<void> _openCurrent(Player player) async {
+    // رمز لكل محاولة فتح — يمنع خطأ محاولة قديمة من إظهار شاشة خطأ
+    // فوق قناة جديدة اختارها المستخدم بسرعة من قائمة القنوات
+    final token = ++_openToken;
     _loadTimer?.cancel();
     _loadTimer = Timer(const Duration(seconds: 35), () {
+      if (token != _openToken) return;
       if (mounted && !_everPlayed && _error == null) {
         _onError(
             'انتهت مهلة الاتصال بالبث (35 ثانية) — تحقق من الإنترنت أو جرّب قناة أخرى');
@@ -430,7 +435,7 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
     try {
       await player.open(Media(_urls[_urlIdx], httpHeaders: _httpHeaders));
     } catch (e) {
-      _onError(e.toString());
+      if (token == _openToken) _onError(e.toString());
     }
   }
 
@@ -680,28 +685,141 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
 
   // ---------- التنقل بين القنوات (البث الحي) ----------
 
+  /// يجلب «الآن/التالي» للقناة الحالية ويتجاهل النتائج المتأخرة لقناة سابقة
+  void _loadEpgFor(String channelId) {
+    unawaited(_st.loadEpg(channelId).then((list) {
+      if (!mounted || _liveId != channelId) return;
+      final now = list.where((e) => e.isNow).toList();
+      if (now.isEmpty) return;
+      final idx = list.indexOf(now.first);
+      final next = idx + 1 < list.length ? list[idx + 1] : null;
+      setState(() {
+        _nowNext =
+            'الآن: ${now.first.title}${next != null ? '  •  التالي: ${next.title}' : ''}';
+      });
+    }));
+  }
+
+  /// يشغّل قناة حية داخل جلسة المشغّل نفسها — بلا إغلاق ولا مغادرة للشاشة
+  Future<void> _playChannel(Channel ch) async {
+    if (widget.target.kind != 'live' || ch.id == _liveId) return;
+    if (!await ensureCategoryUnlocked(
+        context, _st, FavKind.live, ch.categoryId)) {
+      return;
+    }
+    if (!mounted) return;
+    final api = _st.api;
+    final player = _player;
+    if (api == null || player == null) return;
+
+    final primary = api.liveUrl(ch.id, format: _st.preferredLiveFormat);
+    final String swapped;
+    if (_st.preferredLiveFormat == 'm3u8') {
+      swapped = '${primary.substring(0, primary.length - 5)}.ts';
+    } else {
+      swapped = '${primary.substring(0, primary.length - 3)}.m3u8';
+    }
+
+    setState(() {
+      _liveId = ch.id;
+      _title = ch.name;
+      _urls = [
+        primary,
+        swapped,
+        if (ch.directSource.isNotEmpty) ch.directSource,
+      ];
+      _urlIdx = 0;
+      _everPlayed = false;
+      _error = null;
+      _buffering = true;
+      _nowNext = null;
+      _position = 0;
+      _duration = 0;
+      _decoderWarned = false;
+      _audioAutoRetry = 0;
+      _audioTracks = const [];
+      _audioSig = '';
+      _audioTrackId = null;
+      _controlsVisible = true;
+    });
+    _loadTimer?.cancel();
+    _loadEpgFor(ch.id);
+    _showOsd(Icons.live_tv_rounded, 'القناة: ${ch.name}');
+    await _openCurrent(player);
+  }
+
+  /// القائمة المفلترة المعروضة في لوحة القنوات
+  List<Channel> _panelChannels() {
+    var list = _st.channels;
+    if (_channelCat.isNotEmpty) {
+      list = list.where((c) => c.categoryId == _channelCat).toList();
+    }
+    final q = _channelQuery.trim();
+    if (q.isNotEmpty) {
+      final nq = normalizeAr(q);
+      list = list.where((c) => normalizeAr(c.name).contains(nq)).toList();
+    }
+    return list;
+  }
+
+  /// إعادة قائمة القنوات إلى أعلى القائمة عند تغيير البحث أو الفئة
+  void _resetChannelScroll() {
+    final c = _channelScroll;
+    if (c != null && c.hasClients) c.jumpTo(0);
+  }
+
+  /// فتح/إغلاق لوحة القنوات دون التأثير على التشغيل
+  void _toggleChannelPanel({bool? show}) {
+    if (widget.target.kind != 'live') return;
+    final next = show ?? !_channelPanelVisible;
+    if (next == _channelPanelVisible) return;
+    if (next) {
+      _hideTimer?.cancel();
+      // العرض الأساسي عند الفتح = الفئة التي تحتوي على القناة الحالية
+      String? currentCat;
+      for (final c in _st.channels) {
+        if (c.id == _liveId) {
+          currentCat = c.categoryId;
+          break;
+        }
+      }
+      final validCat = currentCat != null &&
+          currentCat.isNotEmpty &&
+          _st.liveCats.any((c) => c.id == currentCat);
+      _channelQuery = '';
+      _channelSearchCtrl.clear();
+      _channelCat = validCat ? currentCat : '';
+      final list = _panelChannels();
+      final idx = list.indexWhere((c) => c.id == _liveId);
+      _channelScroll?.dispose();
+      _channelScroll =
+          ScrollController(initialScrollOffset: idx > 0 ? idx * 54.0 : 0);
+      setState(() {
+        _channelPanelVisible = true;
+        _controlsVisible = true;
+        _colorPanelVisible = false;
+      });
+    } else {
+      setState(() => _channelPanelVisible = false);
+      _channelSearchFocus.unfocus();
+      _focusNode.requestFocus();
+      _armHide();
+    }
+  }
+
   /// القناة على بعد [offset] من الحالية في قائمة قنوات المزوّد (دائرية)
   Channel? _channelAt(int offset) {
     final channels = _st.channels;
-    final idx = channels.indexWhere((c) => c.id == widget.target.id);
+    final idx = channels.indexWhere((c) => c.id == _liveId);
     if (idx == -1 || channels.isEmpty) return null;
     return channels[(idx + offset) % channels.length];
   }
 
-  /// ينتقل للقناة السابقة/التالية باستبدال شاشة المشغل الحالية
+  /// ينتقل للقناة السابقة/التالية داخل المشغّل نفسه (دون إعادة فتحه)
   void _switchChannel(int offset) {
     final ch = _channelAt(offset);
-    if (ch == null || ch.id == widget.target.id) return;
-    _handingOver = true;
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        opaque: true,
-        pageBuilder: (_, __, ___) =>
-            PlayerScreen(target: PlayerTarget.live(ch.id)),
-        transitionsBuilder: (_, a, __, c) =>
-            FadeTransition(opacity: a, child: c),
-      ),
-    );
+    if (ch == null || ch.id == _liveId) return;
+    unawaited(_playChannel(ch));
   }
 
   // ---------- التحكم بلوحة المفاتيح ----------
@@ -717,6 +835,15 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final isRepeat = event is KeyRepeatEvent;
     final key = event.logicalKey;
+
+    // حقل البحث في لوحة القنوات يستقبل الكتابة — لا نعترض اختصارات المشغّل
+    if (_channelSearchFocus.hasFocus) {
+      if (key == LogicalKeyboardKey.escape) {
+        _toggleChannelPanel(show: false);
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
 
     if (key == LogicalKeyboardKey.space && !isRepeat) {
       final wasPlaying = _playing;
@@ -779,12 +906,18 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
       setState(() => _colorPanelVisible = !_colorPanelVisible);
       return KeyEventResult.handled;
     }
+    if (key == LogicalKeyboardKey.keyL && widget.target.kind == 'live') {
+      _toggleChannelPanel();
+      return KeyEventResult.handled;
+    }
     if (key == LogicalKeyboardKey.keyP && _pipSupported) {
       unawaited(_setPip(!_pip));
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.escape) {
-      if (_colorPanelVisible) {
+      if (_channelPanelVisible) {
+        _toggleChannelPanel(show: false);
+      } else if (_colorPanelVisible) {
         setState(() => _colorPanelVisible = false);
       } else if (_pip) {
         unawaited(_setPip(false));
@@ -870,6 +1003,8 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
 
   void _armHide() {
     _hideTimer?.cancel();
+    // لوحة القنوات مفتوحة — نُبقي أدوات التحكم ظاهرة حتى لا تختفي أثناء التصفح
+    if (_channelPanelVisible) return;
     _hideTimer = Timer(const Duration(seconds: 3), () {
       if (mounted) setState(() => _controlsVisible = false);
     });
@@ -967,6 +1102,9 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
     _osdTimer?.cancel();
     _creditsTimer?.cancel();
     _focusNode.dispose();
+    _channelSearchFocus.dispose();
+    _channelSearchCtrl.dispose();
+    _channelScroll?.dispose();
     // خروج بمسار آخر (Esc/رجوع النظام) أثناء ظهور شريط النهاية = تجاوز فعلي
     if (!_creditsHandled && _creditsBarVisible && _duration > 0) {
       _recordCreditsSample();
@@ -1016,8 +1154,7 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
     final st = context.read<AppState>();
     final String? activeRecId = widget.target.kind == 'live'
         ? context.select<AppState, String?>((s) => s.recordings
-            .where((r) =>
-                r.status == 'recording' && r.channelId == widget.target.id)
+            .where((r) => r.status == 'recording' && r.channelId == _liveId)
             .firstOrNull
             ?.id)
         : null;
@@ -1035,7 +1172,9 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
           onHover: (_) => _poke(),
           child: GestureDetector(
             onTap: () {
-              if (_controlsVisible) {
+              if (_channelPanelVisible) {
+                _toggleChannelPanel(show: false);
+              } else if (_controlsVisible) {
                 _hideTimer?.cancel();
                 setState(() => _controlsVisible = false);
               } else {
@@ -1155,7 +1294,7 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                                     onPressed: () async {
                                       Channel? ch;
                                       for (final c in st.channels) {
-                                        if (c.id == widget.target.id) {
+                                        if (c.id == _liveId) {
                                           ch = c;
                                           break;
                                         }
@@ -1273,6 +1412,21 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                                 ),
                               Row(
                                 children: [
+                                  // قائمة القنوات (البث الحي)
+                                  if (widget.target.kind == 'live')
+                                    IconButton(
+                                      tooltip: 'قائمة القنوات (L)',
+                                      onPressed: _toggleChannelPanel,
+                                      icon: Icon(
+                                        _channelPanelVisible
+                                            ? Icons.playlist_remove_rounded
+                                            : Icons.playlist_play_rounded,
+                                        color: _channelPanelVisible
+                                            ? const Color(0xFF1DA967)
+                                            : Colors.white,
+                                        size: 26,
+                                      ),
+                                    ),
                                   // القناة السابقة (البث الحي) — تنقّل دائري
                                   if (widget.target.kind == 'live')
                                     IconButton(
@@ -1344,8 +1498,298 @@ class _PlayerScreenState extends State<PlayerScreen> with WindowListener {
                 ),
                 if (_creditsBarVisible) _buildCreditsBar(),
                 if (_colorPanelVisible) _buildColorAdjustmentPanel(),
+                // ---------- لوحة قائمة القنوات (فوق المشغّل دون إغلاقه) ----------
+                if (_channelPanelVisible && widget.target.kind == 'live')
+                  PositionedDirectional(
+                    end: 12,
+                    top: 68,
+                    bottom: 96,
+                    width: 340,
+                    child: _buildChannelPanel(),
+                  ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// لوحة قائمة القنوات داخل المشغّل — بحث + فئات + تبديل فوري دون إغلاق
+  Widget _buildChannelPanel() {
+    const brand = Color(0xFF1DA967);
+    final cats = _st.liveCats;
+    final list = _panelChannels();
+    final catValid =
+        _channelCat.isEmpty || cats.any((c) => c.id == _channelCat);
+
+    return GestureDetector(
+      onTap: () {}, // نلتقط النقر داخل اللوحة حتى لا يُغلقها نقرة الخلفية
+      behavior: HitTestBehavior.opaque,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF101614).withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+            boxShadow: const [
+              BoxShadow(
+                  color: Colors.black54, blurRadius: 26, offset: Offset(0, 10)),
+            ],
+          ),
+          child: Column(
+            children: [
+              // العنوان + العدد + إغلاق
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 8, 6, 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.live_tv_rounded, size: 18, color: brand),
+                    const SizedBox(width: 8),
+                    const Text('قائمة القنوات',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800)),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: brand.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text('${list.length}',
+                          style: const TextStyle(
+                              color: brand,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800)),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      tooltip: 'إغلاق القائمة (Esc)',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => _toggleChannelPanel(show: false),
+                      icon: const Icon(Icons.close_rounded,
+                          color: Colors.white70, size: 19),
+                    ),
+                  ],
+                ),
+              ),
+              // البحث
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: TextField(
+                  controller: _channelSearchCtrl,
+                  focusNode: _channelSearchFocus,
+                  onChanged: (v) {
+                    setState(() => _channelQuery = v);
+                    _resetChannelScroll();
+                  },
+                  cursorColor: brand,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.06),
+                    hintText: 'ابحث عن قناة...',
+                    hintStyle:
+                        const TextStyle(color: Colors.white38, fontSize: 12.5),
+                    prefixIcon: const Icon(Icons.search_rounded,
+                        size: 18, color: Colors.white54),
+                    suffixIcon: _channelQuery.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'مسح',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () {
+                              _channelSearchCtrl.clear();
+                              setState(() => _channelQuery = '');
+                              _resetChannelScroll();
+                            },
+                            icon: const Icon(Icons.close_rounded,
+                                size: 16, color: Colors.white54),
+                          ),
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.10)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: brand, width: 1.2),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              // الفئات
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(10),
+                    border:
+                        Border.all(color: Colors.white.withValues(alpha: 0.10)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: catValid ? _channelCat : '',
+                      isExpanded: true,
+                      isDense: true,
+                      dropdownColor: const Color(0xFF17201D),
+                      borderRadius: BorderRadius.circular(12),
+                      icon: const Icon(Icons.expand_more_rounded,
+                          color: Colors.white54, size: 20),
+                      style:
+                          const TextStyle(color: Colors.white, fontSize: 12.5),
+                      items: [
+                        const DropdownMenuItem(
+                            value: '', child: Text('كل الفئات')),
+                        ...cats.map((c) => DropdownMenuItem(
+                              value: c.id,
+                              child: Text(c.name,
+                                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                            )),
+                      ],
+                      onChanged: (v) {
+                        setState(() => _channelCat = v ?? '');
+                        _resetChannelScroll();
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
+              // القنوات
+              Expanded(
+                child: list.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.tv_off_outlined,
+                                size: 38,
+                                color: Colors.white.withValues(alpha: 0.25)),
+                            const SizedBox(height: 8),
+                            const Text('لا توجد قنوات مطابقة',
+                                style: TextStyle(
+                                    color: Colors.white54, fontSize: 12.5)),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: _channelScroll,
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        itemCount: list.length,
+                        itemBuilder: (ctx, i) => _buildChannelPanelRow(list[i]),
+                      ),
+              ),
+              // تلميح المفاتيح
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.keyboard_rounded,
+                        size: 13, color: Colors.white38),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        'L: القائمة • ← →: تبديل القناة • Esc: إغلاق',
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.38),
+                            fontSize: 10.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// سطر قناة داخل اللوحة — شعار مصغّر + الاسم + حالة التشغيل/القفل
+  Widget _buildChannelPanelRow(Channel ch) {
+    const brand = Color(0xFF1DA967);
+    final current = ch.id == _liveId;
+    final locked = _st.isCategoryLocked(FavKind.live, ch.categoryId);
+    return Material(
+      color: current ? brand.withValues(alpha: 0.16) : Colors.transparent,
+      child: InkWell(
+        onTap: () => unawaited(_playChannel(ch)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(7),
+                child: Container(
+                  width: 52,
+                  height: 39,
+                  color: Colors.white.withValues(alpha: 0.06),
+                  child: ch.logo.startsWith('http')
+                      ? Image.network(
+                          ch.logo,
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.medium,
+                          errorBuilder: (_, __, ___) => const Icon(
+                              Icons.tv_rounded,
+                              color: Colors.white38,
+                              size: 20),
+                        )
+                      : const Icon(Icons.tv_rounded,
+                          color: Colors.white38, size: 20),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ch.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: locked ? Colors.white54 : Colors.white,
+                        fontSize: 12.5,
+                        fontWeight: current ? FontWeight.w800 : FontWeight.w600,
+                      ),
+                    ),
+                    if (current)
+                      const Text('قيد التشغيل الآن',
+                          style: TextStyle(
+                              color: brand,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+              if (locked)
+                const Icon(Icons.lock_outline_rounded,
+                    size: 15, color: Colors.white38),
+              const SizedBox(width: 6),
+              Icon(
+                current
+                    ? Icons.graphic_eq_rounded
+                    : Icons.play_circle_outline_rounded,
+                size: 22,
+                color: current ? brand : Colors.white54,
+              ),
+            ],
           ),
         ),
       ),

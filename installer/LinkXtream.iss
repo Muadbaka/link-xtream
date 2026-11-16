@@ -1,8 +1,8 @@
 ; سكربت إنشاء مثبّت Link Xtream — Inno Setup 6
-; الناتج: dist\Link-Xtream-Setup-1.7.0.exe
+; الناتج: dist\Link-Xtream-Setup-1.7.1.exe
 
 #define MyAppName "Link Xtream"
-#define MyAppVersion "1.7.0"
+#define MyAppVersion "1.7.1"
 #define MyAppPublisher "Link Co"
 #define MyAppURL "https://www.linkco.ly"
 #define MyAppExeName "link_xtream.exe"
@@ -34,7 +34,7 @@ PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog commandline
 CloseApplications=yes
 RestartApplications=no
-VersionInfoVersion=1.7.0.0
+VersionInfoVersion=1.7.1.0
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription={#MyAppName} Setup
 VersionInfoProductName={#MyAppName}

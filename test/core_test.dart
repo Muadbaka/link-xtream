@@ -407,24 +407,24 @@ void main() {
 
   group('UpdateService', () {
     test('isNewerVersion detects higher versions correctly', () {
-      expect(UpdateService.isNewerVersion('1.7.1', 11), isTrue);
-      expect(UpdateService.isNewerVersion('1.7.0', 12), isTrue);
-      expect(UpdateService.isNewerVersion('2.0.0', 11), isTrue);
-      expect(UpdateService.isNewerVersion('1.6.9', 12), isTrue); // Higher build number
-      expect(UpdateService.isNewerVersion('1.7.0', 11), isFalse); // Same
-      expect(UpdateService.isNewerVersion('1.6.9', 10), isFalse); // Older
+      expect(UpdateService.isNewerVersion('1.7.2', 12), isTrue);
+      expect(UpdateService.isNewerVersion('1.7.1', 13), isTrue);
+      expect(UpdateService.isNewerVersion('2.0.0', 12), isTrue);
+      expect(UpdateService.isNewerVersion('1.7.0', 13), isTrue); // Higher build number
+      expect(UpdateService.isNewerVersion('1.7.1', 12), isFalse); // Same
+      expect(UpdateService.isNewerVersion('1.6.9', 11), isFalse); // Older
       expect(UpdateService.isNewerVersion('1.5.0', 5), isFalse);
     });
 
     test('parses UpdateInfo from JSON', () {
       final info = UpdateInfo.fromJson({
-        'version': '1.7.0',
+        'version': '1.7.1',
         'build_number': 12,
         'release_date': '2026-12-01',
         'download_url': 'http://example.com/setup.exe',
         'changelog': ['Fix 1', 'Feature 2'],
       });
-      expect(info.version, '1.7.0');
+      expect(info.version, '1.7.1');
       expect(info.buildNumber, 12);
       expect(info.changelog.length, 2);
     });
