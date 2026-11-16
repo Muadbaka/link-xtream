@@ -67,7 +67,7 @@ class XtreamApi {
       '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
   /// وكيل التطبيق — للاختبار والمقارنة في الفحص التشخيصي
-  static const String uaApp = 'LinkXtream/1.7.1';
+  static const String uaApp = 'LinkXtream/1.7.2';
 
   static const int _maxAttempts = 3;
 

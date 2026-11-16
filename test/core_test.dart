@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:link_xtream/core/credits.dart';
+import 'package:link_xtream/core/installation_guard.dart';
 import 'package:link_xtream/core/utils.dart';
 import 'package:link_xtream/models/models.dart';
 import 'package:link_xtream/services/prefs.dart';
@@ -407,26 +409,126 @@ void main() {
 
   group('UpdateService', () {
     test('isNewerVersion detects higher versions correctly', () {
-      expect(UpdateService.isNewerVersion('1.7.2', 12), isTrue);
-      expect(UpdateService.isNewerVersion('1.7.1', 13), isTrue);
-      expect(UpdateService.isNewerVersion('2.0.0', 12), isTrue);
-      expect(UpdateService.isNewerVersion('1.7.0', 13), isTrue); // Higher build number
-      expect(UpdateService.isNewerVersion('1.7.1', 12), isFalse); // Same
-      expect(UpdateService.isNewerVersion('1.6.9', 11), isFalse); // Older
+      expect(UpdateService.isNewerVersion('1.7.3', 13), isTrue);
+      expect(UpdateService.isNewerVersion('1.7.2', 14), isTrue);
+      expect(UpdateService.isNewerVersion('2.0.0', 13), isTrue);
+      expect(UpdateService.isNewerVersion('1.7.1', 14), isTrue); // Higher build number
+      expect(UpdateService.isNewerVersion('1.7.2', 13), isFalse); // Same
+      expect(UpdateService.isNewerVersion('1.7.1', 12), isFalse); // Older
       expect(UpdateService.isNewerVersion('1.5.0', 5), isFalse);
     });
 
     test('parses UpdateInfo from JSON', () {
       final info = UpdateInfo.fromJson({
-        'version': '1.7.1',
-        'build_number': 12,
+        'version': '1.7.2',
+        'build_number': 13,
         'release_date': '2026-12-01',
         'download_url': 'http://example.com/setup.exe',
         'changelog': ['Fix 1', 'Feature 2'],
       });
-      expect(info.version, '1.7.1');
-      expect(info.buildNumber, 12);
+      expect(info.version, '1.7.2');
+      expect(info.buildNumber, 13);
       expect(info.changelog.length, 2);
+    });
+  });
+
+  group('InstallationGuard', () {
+    late Directory tempDir;
+    late String markerPath;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('link_xtream_guard_');
+      markerPath = '${tempDir.path}${Platform.pathSeparator}install.dat';
+    });
+
+    tearDown(() async {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    Future<void> writeMarker(String content, {bool bom = false}) async {
+      final text = bom ? '\uFEFF$content' : content;
+      await File(markerPath).writeAsString(text, flush: true);
+    }
+
+    test('accepts a valid marker matching the executable directory', () async {
+      const installDir = r'C:\Program Files\Link Xtream';
+      await writeMarker(
+        'app_id=link-xtream\n'
+        'install_path=$installDir\n'
+        'token=0123456789abcdef\n'
+        'installed_at=2026-11-16 10:00:00\n',
+      );
+
+      expect(await InstallationGuard.validateMarker(markerPath, installDir),
+          isTrue);
+    });
+
+    test('accepts BOM, CRLF and path case/slash differences', () async {
+      const installDir = r'C:\Program Files\Link Xtream';
+      await writeMarker(
+        'app_id=link-xtream\r\n'
+        'install_path=C:/PROGRAM FILES/link xtream/\r\n'
+        'token=abcdefgh\r\n',
+        bom: true,
+      );
+
+      expect(await InstallationGuard.validateMarker(markerPath, installDir),
+          isTrue);
+    });
+
+    test('rejects a marker whose install_path points elsewhere', () async {
+      await writeMarker(
+        'app_id=link-xtream\n'
+        r'install_path=C:\Program Files\Link Xtream'
+        '\n'
+        'token=0123456789abcdef\n',
+      );
+
+      expect(
+        await InstallationGuard.validateMarker(
+          markerPath,
+          r'D:\Copied\Link Xtream',
+        ),
+        isFalse,
+      );
+    });
+
+    test('rejects wrong app_id or short token', () async {
+      const installDir = r'C:\Program Files\Link Xtream';
+      await writeMarker(
+        'app_id=other-app\n'
+        'install_path=$installDir\n'
+        'token=0123456789abcdef\n',
+      );
+      expect(await InstallationGuard.validateMarker(markerPath, installDir),
+          isFalse);
+
+      await writeMarker(
+        'app_id=link-xtream\n'
+        'install_path=$installDir\n'
+        'token=short\n',
+      );
+      expect(await InstallationGuard.validateMarker(markerPath, installDir),
+          isFalse);
+    });
+
+    test('rejects a missing marker file', () async {
+      expect(
+        await InstallationGuard.validateMarker(
+          '${tempDir.path}${Platform.pathSeparator}missing.dat',
+          r'C:\Program Files\Link Xtream',
+        ),
+        isFalse,
+      );
+    });
+
+    test('normalizes paths consistently', () {
+      expect(
+        InstallationGuard.normalizePath(r'C:\Program Files\Link Xtream\'),
+        InstallationGuard.normalizePath('c:/program files/link xtream'),
+      );
     });
   });
 }

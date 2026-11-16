@@ -40,7 +40,7 @@
 
 ## 4. خطوات النشر الصحيحة (بالترتيب)
 
-1. اختر الرقم الجديد، مثال: `1.7.1` مع بناء `12`.
+1. اختر الرقم الجديد، مثال: `1.7.2` مع بناء `13`.
 2. حدّث الملفات الوظيفية الثمانية أعلاه.
 3. شغّل الاختبارات:
    ```powershell
@@ -54,13 +54,13 @@
    ```powershell
    & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\LinkXtream.iss
    ```
-   الناتج: `dist\Link-Xtream-Setup-1.7.1.exe`
-6. أنشئ وسم (tag) جديداً على GitHub، مثال `v1.7.1`، وارفع ملف الـ Setup كمرفق (Asset) في الـ Release.
+   الناتج: `dist\Link-Xtream-Setup-1.7.2.exe`
+6. أنشئ وسم (tag) جديداً على GitHub، مثال `v1.7.2`، وارفع ملف الـ Setup كمرفق (Asset) في الـ Release.
 7. **تأكد أن `download_url` داخل `version.json` يطابق رابط المرفق الحقيقي حرفياً.**
 8. **ارفع `version.json` إلى فرع `main`** (هذه الخطوة هي التي يقرأها التطبيق فعلياً):
    ```powershell
    git add version.json
-   git commit -m "release: v1.7.1"
+   git commit -m "release: v1.7.2"
    git push origin main
    ```
 9. انتظر من دقيقة إلى 5 دقائق (تخزين GitHub المؤقت لملفات `raw`)، ثم من داخل التطبيق:
@@ -73,8 +73,8 @@
 داخل `lib/services/updater.dart`:
 
 ```dart
-static const String currentVersion = '1.7.1';
-static const int currentBuildNumber = 12;
+static const String currentVersion = '1.7.2';
+static const int currentBuildNumber = 13;
 
 static const String defaultUpdateUrl =
     'https://raw.githubusercontent.com/Muadbaka/link-xtream/main/version.json';
@@ -124,8 +124,8 @@ $u = "https://raw.githubusercontent.com/Muadbaka/link-xtream/main/version.json?t
 
 ```json
 {
-  "version": "1.7.1",
-  "build_number": 12
+  "version": "1.7.2",
+  "build_number": 13
 }
 ```
 

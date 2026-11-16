@@ -6,8 +6,10 @@ import 'package:media_kit/media_kit.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'core/installation_guard.dart';
 import 'core/theme.dart';
 import 'screens/home_shell.dart';
+import 'screens/install_required_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/prefs.dart';
@@ -35,6 +37,14 @@ Future<void> main() async {
     await windowManager.maximize();
     await windowManager.focus();
   });
+
+  // حماية المستوى 1: رفض التشغيل إذا كانت الملفات منسوخة من جهاز آخر
+  // (لا يوجد أثر تثبيت رسمي على هذا الجهاز). يُتجاوز الفحص في وضع التطوير.
+  if (!await InstallationGuard.isInstalledCopy()) {
+    await windowManager.setTitle('Link Xtream — التثبيت مطلوب');
+    runApp(const InstallRequiredScreen());
+    return;
+  }
 
   MediaKit.ensureInitialized();
   await Prefs.init();

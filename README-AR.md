@@ -22,6 +22,14 @@
 
 ## سجل التحديثات
 
+### v1.7.2
+
+1. **حماية التثبيت (المستوى 1)** — يرفض التطبيق العمل إذا نُسخ مجلد ملفاته إلى جهاز آخر دون تثبيت رسمي، لأن ملفات التطبيق وحدها لا تكفي لتشغيله.
+2. **ملف علامة تثبيت** — يكتب المثبّت ملف `install.dat` في `%ProgramData%\Link Co\Link Xtream` و`%LocalAppData%\Link Co\Link Xtream` يحتوي معرّف التطبيق ومسار التثبيت ورمزاً فريداً.
+3. **تحقق عند كل تشغيل** — يقرأ التطبيق ملف العلامة ويقارن مسار التثبيت المسجّل فيه بمجلد الملف التنفيذي الحالي؛ عند عدم التطابق تظهر شاشة عربية توضح وجوب التثبيت عبر `Link-Xtream-Setup` مع زر إغلاق.
+4. **حذف تلقائي عند إلغاء التثبيت** — يزيل المثبّت ملفات العلامة عند إلغاء التثبيت، فلا تبقى آثار تمنع التثبيت من جديد.
+5. **لا يؤثر على التطوير** — الفحص معطّل في وضع `flutter run` (نسخة التطوير) وعلى غير ويندوز.
+
 ### v1.7.1
 
 1. **قائمة القنوات داخل مشغل البث المباشر** — زر جديد في شريط التحكم (أو مفتاح `L`) يفتح لوحة قنوات فوق المشغل تتيح تصفح القنوات وتبديلها دون إغلاق المشغل أو الرجوع إلى الشاشة السابقة.
@@ -83,11 +91,10 @@ flutter doctor
 افتح **PowerShell** أو **CMD** في مجلد المشروع ثم:
 
 ```powershell
+flutter clean
 flutter pub get
 flutter run -d windows      # للتشغيل التجريبي مباشرة
 flutter build windows --release   # لبناء النسخة النهائية
-flutter build windows --release
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\LinkXtream.iss
 ```
 
 ستجد التطبيق الجاهز في:
@@ -96,7 +103,7 @@ flutter build windows --release
 build\windows\x64\runner\Release\
 ```
 
-انسخ **كامل مجلد Release** إلى أي جهاز ويندوز وشغّل `link_xtream.exe` — المجلد ذاته هو التطبيق المحمول (لا يحتاج تثبيتاً).
+> **مهم:** نسخ مجلد `Release` وحده إلى جهاز آخر **لا يكفي** لتشغيل التطبيق؛ يجب تثبيته عبر المثبّت الرسمي `Link-Xtream-Setup` (انظر القسم التالي). نسخة التطوير (`flutter run`) لا تخضع لهذا الفحص.
 
 > ملاحظة: عند أول تشغيل قد تظهر رسالة Windows SmartScreen لأن التطبيق غير موقّع رقمياً — اضغط «معلومات إضافية» ثم «تشغيل على أي حال».
 
@@ -107,14 +114,12 @@ build\windows\x64\runner\Release\
 ```powershell
 & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\LinkXtream.iss
 ```
-flutter build windows --release
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\LinkXtream.iss
-...
 
-- الناتج: `dist\Link-Xtream-Setup-1.7.1.exe`
-- الاسم الظاهر في ويندوز: **Link Xtream** — الإصدار **1.7.1** — الناشر **Link Co**
+- الناتج: `dist\Link-Xtream-Setup-1.7.2.exe`
+- الاسم الظاهر في ويندوز: **Link Xtream** — الإصدار **1.7.2** — الناشر **Link Co**
 - المثبّت **لا يحزم أي بيانات مستخدم**؛ عند أول تشغيل تُنشأ قاعدة بيانات محلية فارغة (لا يوجد أي حساب محفوظ) في `%APPDATA%\Link Co\Link Xtream`
 - التثبيت يتطلب صلاحيات مدير افتراضياً، ويمكن التثبيت للمستخدم الحالي فقط لتفادي UAC
+- يكتب المثبّت ملف العلامة `install.dat` في `%ProgramData%\Link Co\Link Xtream` و`%LocalAppData%\Link Co\Link Xtream`، ويحذفه عند إلغاء التثبيت
 
 ## أين تُحفظ البيانات؟
 
@@ -130,6 +135,7 @@ flutter build windows --release
 lib/
 ├── main.dart               # نقطة البداية + النافذة + الثيم
 ├── core/
+│   ├── installation_guard.dart  # التحقق من أثر التثبيت الرسمي
 │   ├── theme.dart          # الهوية الزمردية (داكن/فاتح)
 │   └── utils.dart          # تنسيقات وأدوات
 ├── models/models.dart      # نماذج Xtream API (قنوات، أفلام، مسلسلات، EPG)

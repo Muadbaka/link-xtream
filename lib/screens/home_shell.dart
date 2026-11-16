@@ -450,13 +450,6 @@ class _HomeShellState extends State<HomeShell> {
 
   // ---------- عناصر القائمة الجانبية ----------
 
-  /// الحرف الأول من اسم المستخدم للأفاتار
-  static String _avatarLetter(String? username) {
-    final u = (username ?? '').trim();
-    if (u.isEmpty) return 'U';
-    return u.characters.first.toUpperCase();
-  }
-
   Widget _sideItem(
     BuildContext context,
     AppState st,

@@ -998,7 +998,7 @@ class _AboutSection extends StatelessWidget {
                             color: AppTheme.brand.withValues(alpha: 0.3)),
                       ),
                       child: const Text(
-                        'الإصدار 1.7.1',
+                        'الإصدار 1.7.2',
                         style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w700,

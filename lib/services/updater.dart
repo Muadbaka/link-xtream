@@ -47,8 +47,8 @@ class UpdateService {
   UpdateService._();
 
   /// الإصدار الحالي للتطبيق
-  static const String currentVersion = '1.7.1';
-  static const int currentBuildNumber = 12;
+  static const String currentVersion = '1.7.2';
+  static const int currentBuildNumber = 13;
 
   /// رابط ملف التحديث الافتراضي المربوط بمستودع GitHub
   static const String defaultUpdateUrl =
